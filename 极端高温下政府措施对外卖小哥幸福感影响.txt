@@ -1,0 +1,58 @@
+场景：模拟一个月的极端高温场景下，政府决策对外卖小哥幸福感和健康程度的影响。实现逻辑为，初始情况下实例化10个点外卖群体，3个骑手，1个政府和1个平台，每一个Agent均按照Observation、Thought、Action、Pause的工作流思考并给出反馈。由规则模拟器设定每天的温度范围、覆盖率等范围，供Agent观察并自主做出决。随着一天时间的推移，在早餐、中餐和晚餐时刻，随机触发点外卖Agent的工作流，根据点外卖群体的订单触发外卖小哥的工作流，每天结束前触发企业和政府的工作流。
+
+一、规则模拟器（Environment）
+温度 temperature 每日24h曲线
+阴凉覆盖率 shelter_rate：0.1-0.2 动态可调整，政府新增纳凉点后改变
+休息区覆盖率rest_rate：0.6
+每单距离distance：1-10（km）重采样obey Zipf分布
+税收：revenue 政府可动态调整
+每单外卖价格cost：15-50（RMB）
+
+二、点外卖群体（Customers）
+（1）State 
+点外卖评分列表 last_ratings[] 队列，长度为5，记录前几次外卖打分
+（2）workflow
+Observation：读取当前气温，前几次外卖评分均值mean(last_ratings)
+Thought：衡量点外卖概率
+Action：
+take_order(time, cost, distance)点外卖发布订单，包含下单时间time、外卖金额cost、单距distance
+score(order) 对外卖小哥给出1-5级评分，以及评分内容
+tip_decision() 是否给外卖小哥打赏（extra_pay）
+（3）触发条件：三餐时间窗口
+
+三、外卖小哥（Riders）
+（1）State：
+health 健康情况（0-10，初始化为10，<2则视为中暑，0则为住院）
+money 现有金额 初始值1000
+on_duty 是否在职 (bool)
+happiness 幸福感，综合指数
+（2）workflow
+Observation：读取当前天气，订单情况，自身情况（必须on_duty），纳凉点情况
+Thought：决定后续行动概率
+Action：
+deliver_order接单
+rest休息，恢复自身健康情况
+complain投诉
+Pause：
+更新健康状态，如果是deliver_order, Health = (temperature-35)*K *distance*(1-shelter)) 如果是
+ （3）触发条件：接收到未分配订单且自身on_duty=True
+
+四、企业（Platform）
+（1）State
+cash盈利（初始5000）
+tax_time 记录缴费时间，初始为0，当为7的倍数时触发缴费
+（2）workflow
+Observation：分析每个外卖小哥的业绩
+Thought：思考做出决策
+Action
+calc_profit：计算日总收入
+fire_rider：决定是否解雇外卖小哥
+change_pay：调整外卖小哥每单收益
+pay_tax：向政府缴纳税款（每周后）
+（3）触发条件：每天结束后
+
+五、政府（Government）
+Observation：每日温度，查看外卖小哥的投诉
+Action
+subsidy高温补贴，给外卖小哥每日的高温补贴
+build_shelter增设纳凉点，第二天可以实现
