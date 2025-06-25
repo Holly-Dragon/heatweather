@@ -5,60 +5,135 @@
 
 import os
 import json
-import requests
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, cast
 from dotenv import load_dotenv
+from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam
 
 # 加载环境变量
 load_dotenv()
 
 class DeepSeekClient:
-    """DeepSeek API客户端"""
+    """DeepSeek API客户端 - 使用OpenAI SDK风格"""
     
-    def __init__(self):
-        self.api_key = os.getenv("DEEPSEEK_API_KEY", "")
-        self.base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-        self.available = bool(self.api_key)
+    def __init__(self, 
+                 api_key: Optional[str] = None, 
+                 base_url: Optional[str] = None, 
+                 model: Optional[str] = None):
+        """
+        初始化DeepSeek客户端
+        
+        Args:
+            api_key: API密钥，默认从环境变量DEEPSEEK_API_KEY获取
+            base_url: API基础URL，默认从环境变量DEEPSEEK_BASE_URL获取
+            model: 模型名称，默认从环境变量DEEPSEEK_MODEL获取
+        """
+        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY", "")
+        self.base_url = base_url or os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+        self.model = model or os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        
+        # 初始化OpenAI客户端
+        if self.api_key:
+            try:
+                self.client = OpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url
+                )
+                self.available = True
+            except Exception as e:
+                print(f"初始化DeepSeek客户端失败: {e}")
+                self.client = None
+                self.available = False
+        else:
+            self.client = None
+            self.available = False
         
     def is_available(self) -> bool:
         """检查是否可用"""
         return self.available
     
-    def chat_completion(self, messages: List[Dict], temperature: float = 0.7) -> Optional[str]:
-        """调用聊天完成API"""
-        if not self.available:
+    def chat_completion(self, 
+                        messages: List[Dict[str, str]], 
+                        temperature: float = 0.7,
+                        max_tokens: int = 2000,
+                        **kwargs: Any) -> Optional[str]:
+        """
+        调用聊天完成API，风格与OpenAI SDK保持一致。
+        
+        Args:
+            messages: 消息列表，格式为[{"role": "user", "content": "..."}]。
+            temperature: 温度参数，控制输出随机性。
+            max_tokens: 生成内容的最大token数。
+            **kwargs: 其他传递给 `openai.chat.completions.create` 的参数，
+                      例如 `timeout`, `top_p` 等。
+            
+        Returns:
+            返回生成的文本内容，失败时返回None。
+        """
+        if not self.available or not self.client:
             return None
             
         try:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
+            # 将字典列表转换为符合OpenAI SDK要求的类型
+            typed_messages = cast(List[ChatCompletionMessageParam], messages)
             
-            data = {
-                "model": "deepseek-chat",
-                "messages": messages,
-                "temperature": temperature,
-                "max_tokens": 2000
-            }
-            
-            response = requests.post(
-                f"{self.base_url}/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=30
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=typed_messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                **kwargs
             )
             
-            if response.status_code == 200:
-                result = response.json()
-                return result["choices"][0]["message"]["content"]
+            if response.choices and len(response.choices) > 0:
+                return response.choices[0].message.content
             else:
-                print(f"DeepSeek API错误: {response.status_code} - {response.text}")
+                print("DeepSeek API返回空响应")
                 return None
                 
         except Exception as e:
             print(f"调用DeepSeek API失败: {e}")
             return None
+    
+    def create_completion(self, prompt: str, temperature: float = 0.7, max_tokens: int = 2000) -> Optional[str]:
+        """
+        创建文本补全（兼容方法）
+        
+        Args:
+            prompt: 输入提示
+            temperature: 温度参数
+            max_tokens: 最大token数
+            
+        Returns:
+            生成的文本内容
+        """
+        messages = [{"role": "user", "content": prompt}]
+        return self.chat_completion(messages, temperature=temperature, max_tokens=max_tokens)
+    
+    def get_models(self) -> List[str]:
+        """获取可用模型列表"""
+        if not self.available or not self.client:
+            return []
+        
+        try:
+            models = self.client.models.list()
+            return [model.id for model in models.data]
+        except Exception as e:
+            print(f"获取模型列表失败: {e}")
+            return [self.model]  # 返回默认模型
+    
+    def test_connection(self) -> bool:
+        """测试连接"""
+        if not self.available:
+            return False
+            
+        try:
+            test_messages = [{"role": "user", "content": "Hello"}]
+            response = self.chat_completion(test_messages, temperature=0.1)
+            return response is not None
+        except Exception as e:
+            print(f"连接测试失败: {e}")
+            return False
 
 class AgentPrompts:
     """Agent提示词模板类"""
@@ -68,25 +143,29 @@ class AgentPrompts:
 你是一个理性的外卖消费者。请根据当前环境状况做出点餐决策。
 
 考虑因素:
-- 温度对配送质量的影响
+- 温度对外出就餐便利程度的影响
 - 历史服务评分
 - 是否用餐时间
-- 对骑手健康的关心
 
 请简洁地分析情况并给出决策理由。
 """
 
     # 骑手Agent提示词  
     RIDER_SYSTEM = """
-你是一名外卖骑手，需要在健康和收入之间做出平衡。
+你是一名外卖骑手，你的首要目标是最大化你的收入。健康固然重要，但你需要承担一定风险来赚钱。
 
 你的状态:
 - 健康值: {health}/10
 - 当前资金: {money}元
 - 幸福感: {happiness}/10
 
-请根据环境条件和自身状态，决定是否接单、休息或投诉。
-优先考虑健康安全，但也要维持基本收入。
+决策指南:
+- **首要任务是接单**: 只要有订单并且你的健康状况没有到危险水平(低于2)，你就应该接单。
+- **高温是常态**: 在这个城市，高温是工作的一部分。你不能因为热就停止工作。
+- **权衡**: 只有在健康状况非常差时才应该优先考虑休息。
+- **生存**: 不工作就没有收入。
+
+请根据环境条件和自身状态，决定你的下一个行动：deliver, rest, 或 complain。
 """
 
     # 政府Agent提示词
@@ -98,7 +177,7 @@ class AgentPrompts:
 - 合理分配公共资源
 - 维护社会服务秩序
 
-根据当前状况，决定是否发放补贴或增设基础设施。
+根据当前状况，决定是否发放高温补贴或增设基础设施。
 """
 
     # 平台Agent提示词

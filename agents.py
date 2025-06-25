@@ -146,7 +146,7 @@ class Rider(AgentState):
     def __init__(self, rider_id: str):
         super().__init__(rider_id, "Rider")
         self.health = 10.0  # 健康状况
-        self.money = 1000.0  # 现有金额
+        self.money = 0.0  # 现有金额
         self.on_duty = True  # 是否在职
         self.happiness = 5.0  # 幸福感
         self.orders_completed = 0

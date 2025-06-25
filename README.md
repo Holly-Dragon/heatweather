@@ -8,53 +8,28 @@
 
 ### Agent类型
 
-1. **环境规则模拟器 (Environment)**
-   - 生成24小时温度曲线（极端高温场景）
-   - 管理阴凉覆盖率、休息区覆盖率
-   - 生成订单距离（遵循Zipf分布）和价格
-
-2. **客户群体 (Customers)**
-   - 状态：点外卖评分历史
-   - 行为：在用餐时间根据温度和服务评分决定是否下单
-   - 交互：对配送服务评分和给小费
-
-3. **外卖骑手 (Riders)**
-   - 状态：健康状况、资金、在职状态、幸福感
-   - 行为：根据健康状况和环境条件决定接单、休息或投诉
-   - 影响：高温配送会损害健康，影响幸福感
-
-4. **外卖平台 (Platform)**
-   - 状态：资金、税收时间
-   - 行为：计算收益、管理骑手、缴税
-   - 决策：解雇表现差的骑手
-
-5. **政府 (Government)**
-   - 状态：预算、补贴记录、基础设施建设
-   - 行为：观察骑手投诉和健康状况
-   - 政策：发放高温补贴、增设纳凉点
+1.  **环境规则模拟器 (Environment)**: 生成24小时温度曲线、管理地图环境（如阴凉处）、生成订单。
+2.  **客户群体 (Customers)**: 根据温度和服务质量决定是否下单及评分。
+3.  **外卖骑手 (Riders)**: 根据健康、收入和环境状况决定接单、休息或投诉。
+4.  **外卖平台 (Platform)**: 管理骑手、计算收益和税收。
+5.  **政府 (Government)**: 观察骑手健康和投诉，并据此采取干预措施（高温补贴、增设纳凉点）。
 
 ### 工作流程
 
-每个Agent都遵循 **Observation → Thought → Action → Pause** 的工作流：
-
-- **Observation**: 观察环境状态和其他Agent行为
-- **Thought**: 基于观察进行决策思考
-- **Action**: 执行具体行动
-- **Pause**: 更新自身状态
+每个Agent都遵循 **Observation → Thought → Action → Pause** 的工作流，通过大语言模型（LLM）进行决策。
 
 ## 文件结构
 
 ```
 heatweather/
-├── environment.py          # 环境规则模拟器
-├── agents.py              # 所有Agent定义
-├── utils.py               # 工具函数和日志记录
-├── simulation.py          # LangGraph版本仿真（开发中）
-├── complete_simulation.py # 完整版仿真系统
-├── test_simple.py         # 简化测试版本
-├── main.py               # 主程序入口
-├── requirements.txt      # 依赖包列表
-└── README.md            # 项目说明文档
+├── langgraph_simulation.py # 仿真主程序入口
+├── llm_agents.py           # 定义基于LLM的Agent决策逻辑
+├── agents.py               # 定义Agent的基础属性和行为
+├── environment.py          # 环境模拟器
+├── llm_config.py           # LLM模型配置
+├── utils.py                # 工具函数和日志记录
+├── requirements.txt        # 依赖包列表
+└── README.md               # 项目说明文档
 ```
 
 ## 快速开始
@@ -65,26 +40,16 @@ heatweather/
 pip install -r requirements.txt
 ```
 
-### 2. 运行测试
+### 2. 配置API Key
 
-运行简化版本测试（2天，少量Agent）：
+在 `llm_config.py` 文件中配置你的DeepSeek API Key。
 
-```bash
-python test_simple.py
-```
+### 3. 运行仿真
 
-### 3. 运行完整仿真
-
-运行完整版仿真系统：
+运行主仿真程序：
 
 ```bash
-python complete_simulation.py
-```
-
-或使用主程序：
-
-```bash
-python main.py
+python langgraph_simulation.py
 ```
 
 ## 仿真参数

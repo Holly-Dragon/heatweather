@@ -3,11 +3,14 @@
 集成DeepSeek LLM进行智能决策
 """
 
-from typing import Dict, List, Any, TypedDict, Annotated
+from typing import Dict, List, Any, TypedDict, Annotated, cast
 from langgraph.graph import StateGraph, END, START
+from langchain_core.runnables import RunnableConfig
 import random
 import asyncio
 from datetime import datetime
+import matplotlib.pyplot as plt
+import pandas as pd
 
 from environment import Environment
 from llm_agents import LLMCustomer, LLMRider, LLMGovernment, LLMPlatform
@@ -33,6 +36,9 @@ class LangGraphSimulationState(TypedDict):
     current_orders: List[Any]
     logger: SimulationLogger
     
+    # 决策模式
+    decision_mode: str
+    
     # 状态标志
     simulation_running: bool
     step_count: int
@@ -40,13 +46,15 @@ class LangGraphSimulationState(TypedDict):
 class LangGraphHeatWeatherSimulation:
     """基于LangGraph的极端高温仿真系统"""
     
-    def __init__(self, num_customers: int = 5, num_riders: int = 2, simulation_days: int = 5):
+    def __init__(self, num_customers: int = 5, num_riders: int = 2, simulation_days: int = 5, decision_mode: str = 'llm'):
         self.num_customers = num_customers
         self.num_riders = num_riders
         self.simulation_days = simulation_days
+        self.decision_mode = decision_mode
         
         # 检查LLM状态
-        check_llm_status()
+        if self.decision_mode == 'llm':
+            check_llm_status()
         
         # 初始化组件
         self.environment = Environment()
@@ -61,6 +69,7 @@ class LangGraphHeatWeatherSimulation:
         
         print(f"🚀 LangGraph仿真系统初始化完成")
         print(f"📊 配置: {num_customers}个客户, {num_riders}个骑手, {simulation_days}天")
+        print(f"🤖 决策模式: {'LLM智能决策' if self.decision_mode == 'llm' else '基于规则的决策'}")
         
     def _build_simulation_graph(self):
         """构建LangGraph仿真图"""
@@ -83,7 +92,8 @@ class LangGraphHeatWeatherSimulation:
         
         def customer_workflow(state: LangGraphSimulationState) -> LangGraphSimulationState:
             """客户工作流节点"""
-            env_state = state["environment"].get_environment_state()
+            environment = state["environment"]
+            env_state = environment.get_environment_state()
             
             # 只在用餐时间执行客户行为
             if not env_state["is_meal_time"]:
@@ -93,7 +103,7 @@ class LangGraphHeatWeatherSimulation:
             
             for customer in state["customers"]:
                 try:
-                    order = customer.observe_and_decide(env_state)
+                    order = customer.observe_and_decide(environment, decision_mode=state["decision_mode"])
                     if order:
                         state["current_orders"].append(order)
                         state["all_orders"].append(order)
@@ -114,8 +124,10 @@ class LangGraphHeatWeatherSimulation:
         
         def rider_workflow(state: LangGraphSimulationState) -> LangGraphSimulationState:
             """骑手工作流节点"""
-            env_state = state["environment"].get_environment_state()
-            available_orders = [o for o in state["current_orders"] if not hasattr(o, 'rider_id')]
+            environment = state["environment"]
+            env_state = environment.get_environment_state()
+            # 修复：通过检查rider_id是否为None或空来判断订单是否可用
+            available_orders = [o for o in state["current_orders"] if not o.rider_id]
             
             temp = env_state['temperature']
             if temp > 42:
@@ -123,20 +135,29 @@ class LangGraphHeatWeatherSimulation:
             elif temp > 38:
                 print(f"🌡️ {state['current_hour']:02d}:00 高温预警 {temp:.1f}°C")
             
+            # Shuffle riders to prevent bias and ensure fair order distribution
+            shuffled_riders = random.sample(state["riders"], len(state["riders"]))
+
             # 处理每个骑手的决策
-            for rider in state["riders"]:
+            for rider in shuffled_riders:
                 if not rider.on_duty:
                     continue
                 
                 try:
-                    action = rider.observe_and_decide(env_state, available_orders)
+                    # For each rider, get the most up-to-date list of available orders
+                    # 修复：通过检查rider_id是否为None或空来判断订单是否可用
+                    available_orders = [o for o in state["current_orders"] if not o.rider_id]
+                    
+                    action = rider.observe_and_decide(environment, available_orders, decision_mode=state["decision_mode"])
                     
                     if action == "deliver" and available_orders:
                         # 选择并配送订单
                         order = random.choice(available_orders)
-                        result = rider.deliver_order(order, env_state)
-                        available_orders.remove(order)
-                        state["current_orders"].remove(order)
+                        result = rider.deliver_order(order, environment)
+                        
+                        # 移除此行：不再从当前订单池中物理删除订单
+                        # 而是依赖 order.rider_id 属性来识别已分配的订单
+                        # state["current_orders"].remove(order)
                         
                         # 客户评分和小费
                         customer = next(c for c in state["customers"] if c.agent_id == order.customer_id)
@@ -152,11 +173,11 @@ class LangGraphHeatWeatherSimulation:
                             print(f"    💔 {rider.agent_id} 健康状况较差")
                             
                     elif action == "rest":
-                        rider.rest(env_state)
+                        rider.rest(environment)
                         print(f"  💤 {rider.agent_id}: 休息恢复")
                         
                     elif action == "complain":
-                        complaint = rider.complain(env_state)
+                        complaint = rider.complain(environment)
                         print(f"  📢 {rider.agent_id}: 投诉工作条件")
                     
                     # 记录到日志
@@ -183,7 +204,7 @@ class LangGraphHeatWeatherSimulation:
             
             try:
                 platform = state["platform"]
-                actions = platform.observe_and_decide(state["riders"], state["all_orders"])
+                actions = platform.observe_and_decide(state["riders"], state["all_orders"], decision_mode=state["decision_mode"])
                 
                 # 计算日收益
                 profit = platform.calc_profit(state["all_orders"])
@@ -218,8 +239,8 @@ class LangGraphHeatWeatherSimulation:
             
             try:
                 government = state["government"]
-                env_state = state["environment"].get_environment_state()
-                policies = government.observe_and_decide(env_state, state["riders"])
+                environment = state["environment"]
+                policies = government.observe_and_decide(environment, state["riders"], decision_mode=state["decision_mode"])
                 
                 # 执行政策
                 if policies["subsidy"] > 0:
@@ -273,6 +294,9 @@ class LangGraphHeatWeatherSimulation:
                 state["platform"].daily_revenue = 0.0
                 for rider in state["riders"]:
                     rider.daily_income = 0.0
+                
+                # 为新的一天清空当前订单池
+                state["current_orders"] = []
             
             return state
         
@@ -336,6 +360,7 @@ class LangGraphHeatWeatherSimulation:
             all_orders=[],
             current_orders=[],
             logger=self.logger,
+            decision_mode=self.decision_mode,
             simulation_running=True,
             step_count=0
         )
@@ -343,7 +368,9 @@ class LangGraphHeatWeatherSimulation:
         try:
             # 运行LangGraph
             print(f"🚀 开始仿真...")
-            final_state = await self.graph.ainvoke(initial_state)
+            # 增加递归限制以支持长时间仿真
+            config = cast(RunnableConfig, {"recursion_limit": self.simulation_days * 24 + 100})
+            final_state = await self.graph.ainvoke(initial_state, config=config)
             
             print("\n🎉 仿真完成!")
             
@@ -418,7 +445,7 @@ class LangGraphHeatWeatherSimulation:
         print(f"  - 规则基础决策: {rule_decisions}次")
         
         # 效果评估
-        print(f"\n🎯 政策效果评估:")
+        print(f"\n🎯 仿真效果评估:")
         
         if avg_health >= 7:
             health_grade = "优秀 ✅"
@@ -441,7 +468,7 @@ class LangGraphHeatWeatherSimulation:
         print(f"  - 幸福感: {happiness_grade}")
         
         # 建议
-        print(f"\n💡 AI分析建议:")
+        print(f"\n💡 AI分析与建议:")
         if avg_health < 5:
             print("  📌 骑手健康堪忧，建议增加补贴和休息时间")
         if total_complaints > self.simulation_days * 2:
@@ -455,12 +482,15 @@ class LangGraphHeatWeatherSimulation:
         
         print(f"\n💾 详细日志: {log_filename}")
         
-        # 尝试生成图表
-        try:
-            self.logger.plot_simulation_results()
-            print("📊 图表已生成: simulation_results.png")
-        except Exception as e:
-            print(f"⚠️ 图表生成失败: {e}")
+        # # 尝试生成图表
+        # try:
+        #     # 设置中文字体
+        #     plt.rcParams['font.sans-serif'] = ['PingFang SC']
+        #     plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+        #     self.logger.plot_simulation_results()
+        #     print("📊 图表已生成: simulation_results.png")
+        # except Exception as e:
+        #     print(f"⚠️ 图表生成失败: {e}")
     
     def _extract_results(self, final_state: Dict[str, Any]) -> Dict[str, Any]:
         """提取仿真结果"""
@@ -489,12 +519,15 @@ def main():
         customers = int(input("客户数量 (默认5): ") or "5")
         riders = int(input("骑手数量 (默认2): ") or "2") 
         days = int(input("仿真天数 (默认5): ") or "5")
+        mode_choice = input("选择决策模式 (1: LLM决策, 2: 规则决策，默认1): ") or "1"
+        decision_mode = 'llm' if mode_choice == '1' else 'rule'
+        
     except ValueError:
-        customers, riders, days = 5, 2, 5
-        print("使用默认参数")
+        customers, riders, days, decision_mode = 5, 2, 5, 'llm'
+        print("输入无效，使用默认参数")
     
     async def run():
-        simulation = LangGraphHeatWeatherSimulation(customers, riders, days)
+        simulation = LangGraphHeatWeatherSimulation(customers, riders, days, decision_mode)
         results = await simulation.run_simulation()
         return results
     

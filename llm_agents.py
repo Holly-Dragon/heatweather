@@ -12,6 +12,7 @@ import numpy as np
 
 from agents import AgentState, Order  # 导入原有基础类
 from llm_config import LLMEnhancedAgent, agent_prompts, deepseek_client
+from environment import Environment
 
 class LLMCustomer(LLMEnhancedAgent):
     """集成LLM的客户Agent"""
@@ -20,20 +21,31 @@ class LLMCustomer(LLMEnhancedAgent):
         super().__init__("Customer", customer_id)
         self.last_ratings = deque(maxlen=5)
         self.order_history = []
+        self.last_order_hour = -99  # 记录上次下单时间，防止短时重复下单
         
-    def observe_and_decide(self, environment_state: Dict) -> Optional[Order]:
+    def observe_and_decide(self, environment: Environment, decision_mode: str = 'llm') -> Optional[Order]:
         """观察环境并做出点餐决策"""
+        environment_state = environment.get_environment_state()
+        hour = environment_state["hour"]
+        is_meal_time = environment_state["is_meal_time"]
+
+        # 检查是否在用餐时间
+        if not is_meal_time:
+            return None
+        
+        # 防止短时间内重复下单 (例如4小时内)
+        if (hour - self.last_order_hour) < 4:
+             return None
+
         temp = environment_state["temperature"]
         avg_rating = float(np.mean(self.last_ratings) if self.last_ratings else 5.0)
-        is_meal_time = environment_state["is_meal_time"]
-        hour = environment_state["hour"]
         
         # 构建观察信息
         observation = f"当前温度{temp:.1f}°C，时间{hour}点，用餐时间:{is_meal_time}，历史评分均值{avg_rating:.1f}"
         self.add_observation(observation)
         
         # 使用LLM进行决策
-        if deepseek_client.is_available():
+        if decision_mode == 'llm' and deepseek_client.is_available():
             user_prompt = f"""
 当前环境:
 - 温度: {temp:.1f}°C
@@ -42,7 +54,7 @@ class LLMCustomer(LLMEnhancedAgent):
 - 我的历史评分均值: {avg_rating:.1f}
 
 请决定是否点外卖？考虑因素：
-1. 高温可能影响配送质量和骑手健康
+1. 高温对于外出就餐的便利程度
 2. 用餐时间更适合点餐
 3. 历史评分反映服务质量
 
@@ -70,19 +82,19 @@ class LLMCustomer(LLMEnhancedAgent):
                     should_order = self._rule_based_order_decision(temp, avg_rating, is_meal_time)
         else:
             # 使用规则决策
+            self.add_thought("规则决策：基于温度、用餐时间和历史评分决定是否下单")
             should_order = self._rule_based_order_decision(temp, avg_rating, is_meal_time)
         
         # 如果决定下单，创建订单
         if should_order and is_meal_time:
-            from environment import Environment
-            env = Environment()
             order = Order(
                 order_id=str(uuid.uuid4()),
                 customer_id=self.agent_id,
                 time=hour,
-                cost=env.get_order_cost(),
-                distance=env.get_order_distance()
+                cost=environment.get_order_cost(),
+                distance=environment.get_order_distance()
             )
+            self.last_order_hour = hour  # 更新下单时间
             self.order_history.append(order)
             action = f"下单 - 订单ID:{order.order_id[:8]}, 金额:{order.cost:.1f}元, 距离:{order.distance:.1f}km"
             self.add_action(action)
@@ -143,11 +155,12 @@ class LLMRider(LLMEnhancedAgent):
         self.complaints = []
         self.daily_income = 0.0
         
-    def observe_and_decide(self, environment_state: Dict, available_orders: List[Order]) -> str:
+    def observe_and_decide(self, environment: Environment, available_orders: List[Order], decision_mode: str = 'llm') -> str:
         """观察环境并决定行动"""
         if not self.on_duty:
             return "off_duty"
             
+        environment_state = environment.get_environment_state()
         temp = environment_state["temperature"]
         shelter_rate = environment_state["shelter_rate"]
         order_count = len(available_orders)
@@ -162,7 +175,7 @@ class LLMRider(LLMEnhancedAgent):
             return "rest"
         
         # 使用LLM进行决策
-        if deepseek_client.is_available():
+        if decision_mode == 'llm' and deepseek_client.is_available():
             system_prompt = agent_prompts.RIDER_SYSTEM.format(
                 health=self.health,
                 money=self.money,
@@ -203,6 +216,7 @@ class LLMRider(LLMEnhancedAgent):
                 else:
                     return self._rule_based_action_decision(temp, order_count)
         else:
+            self.add_thought("规则决策：基于健康、温度和订单数决定行动")
             return self._rule_based_action_decision(temp, order_count)
     
     def _rule_based_action_decision(self, temp: float, order_count: int) -> str:
@@ -219,8 +233,9 @@ class LLMRider(LLMEnhancedAgent):
         
         return "rest"
     
-    def deliver_order(self, order: Order, environment_state: Dict) -> Dict:
+    def deliver_order(self, order: Order, environment: Environment) -> Dict:
         """配送订单"""
+        environment_state = environment.get_environment_state()
         temp = environment_state["temperature"]
         shelter_rate = environment_state["shelter_rate"]
         
@@ -242,7 +257,7 @@ class LLMRider(LLMEnhancedAgent):
         order.rider_id = self.agent_id
         order.delivered = True
         
-        self.update_happiness(environment_state)
+        self.update_happiness(environment)
         
         action = f"完成订单{order.order_id[:8]}，收入{total_income:.1f}元，健康损失{health_loss:.1f}"
         self.add_action(action)
@@ -253,8 +268,9 @@ class LLMRider(LLMEnhancedAgent):
             "health_loss": health_loss
         }
     
-    def rest(self, environment_state: Dict):
+    def rest(self, environment: Environment):
         """休息恢复"""
+        environment_state = environment.get_environment_state()
         rest_rate = environment_state["rest_rate"]
         temp = environment_state["temperature"]
         
@@ -264,8 +280,9 @@ class LLMRider(LLMEnhancedAgent):
         
         self.add_action(f"休息恢复健康{recovery:.1f}，当前健康{self.health:.1f}/10")
     
-    def complain(self, environment_state: Dict):
+    def complain(self, environment: Environment):
         """投诉"""
+        environment_state = environment.get_environment_state()
         complaint = {
             "rider_id": self.agent_id,
             "day": environment_state["day"],
@@ -279,8 +296,9 @@ class LLMRider(LLMEnhancedAgent):
         self.add_action(f"投诉工作条件，健康{self.health:.1f}/10，温度{environment_state['temperature']:.1f}°C")
         return complaint
     
-    def update_happiness(self, environment_state: Dict):
+    def update_happiness(self, environment: Environment):
         """更新幸福感"""
+        environment_state = environment.get_environment_state()
         health_factor = self.health / 10.0
         money_factor = min(1.0, self.money / 2000.0)
         temp_factor = max(0.1, 1.0 - (environment_state["temperature"] - 30) / 20)
@@ -309,8 +327,9 @@ class LLMGovernment(LLMEnhancedAgent):
         self.subsidies_paid = 0.0
         self.shelters_built = 0
         
-    def observe_and_decide(self, environment_state: Dict, riders: List[LLMRider]) -> Dict[str, Any]:
+    def observe_and_decide(self, environment: Environment, riders: List[LLMRider], decision_mode: str = 'llm') -> Dict[str, Any]:
         """观察社会状况并制定政策"""
+        environment_state = environment.get_environment_state()
         temp = environment_state["temperature"]
         complaints = sum(len(r.complaints) for r in riders)
         unhealthy_riders = len([r for r in riders if r.health < 5])
@@ -320,7 +339,7 @@ class LLMGovernment(LLMEnhancedAgent):
         self.add_observation(observation)
         
         # 使用LLM进行政策决策
-        if deepseek_client.is_available():
+        if decision_mode == 'llm' and deepseek_client.is_available():
             user_prompt = f"""
 当前社会状况:
 - 温度: {temp:.1f}°C
@@ -339,6 +358,7 @@ class LLMGovernment(LLMEnhancedAgent):
             
             decision = self.llm_decide(agent_prompts.GOVERNMENT_SYSTEM, user_prompt)
         else:
+            self.add_thought("规则决策：基于温度、投诉和健康状况制定政策")
             decision = self._rule_based_policy_decision(temp, complaints, unhealthy_riders, shelter_rate)
         
         # 执行政策决策
@@ -417,7 +437,7 @@ class LLMPlatform(LLMEnhancedAgent):
         self.daily_revenue = 0.0
         self.rider_pay_rate = 0.2
         
-    def observe_and_decide(self, riders: List[LLMRider], orders: List[Order]) -> Dict[str, Any]:
+    def observe_and_decide(self, riders: List[LLMRider], orders: List[Order], decision_mode: str = 'llm') -> Dict[str, Any]:
         """观察运营状况并做决策"""
         active_riders = len([r for r in riders if r.on_duty])
         completed_orders = len([o for o in orders if o.delivered])
@@ -428,7 +448,7 @@ class LLMPlatform(LLMEnhancedAgent):
         self.add_observation(observation)
         
         # 使用LLM进行运营决策
-        if deepseek_client.is_available():
+        if decision_mode == 'llm' and deepseek_client.is_available():
             user_prompt = f"""
 平台运营状况:
 - 在职骑手数: {active_riders}
@@ -447,6 +467,7 @@ class LLMPlatform(LLMEnhancedAgent):
             
             decision = self.llm_decide(agent_prompts.PLATFORM_SYSTEM, user_prompt)
         else:
+            self.add_thought("规则决策：基于骑手健康和投诉情况进行业务决策")
             decision = self._rule_based_business_decision(active_riders, avg_health, complaints)
         
         # 执行业务决策
