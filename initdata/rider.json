@@ -1,0 +1,128 @@
+[
+  {
+    "profile": {
+      "rider_id": 1751126343316,
+      "age": 28,
+      "gender": "男",
+      "is_on_duty": true,
+      "personality": "勤劳肯干、服务态度好",
+      "economic_condition": "普通"
+    },
+    "performance_history": [
+      {
+        "order_id": "OH202405261001",
+        "order_type": "餐饮",
+        "order_status": "已送达",
+        "delivery_fee": 5.5,
+        "delivery_distance": 3.2,
+        "delivery_time": "25分钟",
+        "rating": 5,
+        "customer_review": "配送很快，骑手很热情！"
+      },
+      {
+        "order_id": "OH202405261002",
+        "order_type": "生鲜",
+        "order_status": "已送达",
+        "delivery_fee": 8.0,
+        "delivery_distance": 5.0,
+        "delivery_time": "35分钟",
+        "rating": 4,
+        "customer_review": "东西新鲜，但配送时间有点长。"
+      },
+      {
+        "order_id": "OH202405261003",
+        "order_type": "药品",
+        "order_status": "已取消",
+        "delivery_fee": 6.0,
+        "delivery_distance": 2.8,
+        "delivery_time": "20分钟",
+        "rating": 0,
+        "customer_review": "订单取消了，希望下次能顺利送达。"
+      }
+    ]
+  },
+  {
+    "profile": {
+      "rider_id": 1751126349763,
+      "age": 34,
+      "gender": "男",
+      "is_on_duty": true,
+      "personality": "安全第一、沉默寡言",
+      "economic_condition": "普通"
+    },
+    "performance_history": [
+      {
+        "order_id": "ORD123456",
+        "order_type": "餐饮",
+        "order_status": "已送达",
+        "delivery_fee": 18.5,
+        "delivery_distance": 5.2,
+        "delivery_time": "35分钟",
+        "rating": 5,
+        "customer_review": "配送准时，服务态度好。"
+      },
+      {
+        "order_id": "ORD123457",
+        "order_type": "生鲜",
+        "order_status": "已送达",
+        "delivery_fee": 22.0,
+        "delivery_distance": 8.0,
+        "delivery_time": "48分钟",
+        "rating": 4,
+        "customer_review": "配送速度还可以，但包装有点破损。"
+      },
+      {
+        "order_id": "ORD123458",
+        "order_type": "药品",
+        "order_status": "已取消",
+        "delivery_fee": 15.0,
+        "delivery_distance": 3.0,
+        "delivery_time": "25分钟",
+        "rating": 0,
+        "customer_review": "订单取消了，没有及时通知。"
+      }
+    ]
+  },
+  {
+    "profile": {
+      "rider_id": 1751126355493,
+      "age": 26,
+      "gender": "男",
+      "is_on_duty": true,
+      "personality": "细心、耐心、服务态度好",
+      "economic_condition": "普通"
+    },
+    "performance_history": [
+      {
+        "order_id": "ORD123456",
+        "order_type": "餐饮",
+        "order_status": "已送达",
+        "delivery_fee": 8.5,
+        "delivery_distance": 3.2,
+        "delivery_time": "25分钟",
+        "rating": 5,
+        "customer_review": "配送很快，食物完好无损，非常满意！"
+      },
+      {
+        "order_id": "ORD123457",
+        "order_type": "生鲜",
+        "order_status": "已送达",
+        "delivery_fee": 12.0,
+        "delivery_distance": 4.5,
+        "delivery_time": "35分钟",
+        "rating": 4,
+        "customer_review": "配送时间稍长，但商品新鲜，值得肯定。"
+      },
+      {
+        "order_id": "ORD123458",
+        "order_type": "药品",
+        "order_status": "已取消",
+        "delivery_fee": 10.0,
+        "delivery_distance": 2.0,
+        "delivery_time": "15分钟",
+        "rating": 3,
+        "customer_review": "配送过程中出现了问题，订单被取消，希望下次能更可靠。"
+      }
+    ]
+  }
+]

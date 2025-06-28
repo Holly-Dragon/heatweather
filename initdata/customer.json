@@ -1,0 +1,128 @@
+[
+  {
+    "profile": {
+      "customer_id": 1751126466821,
+      "age": 28,
+      "gender": "男",
+      "occupation": "独立游戏开发者",
+      "personality": "追求新潮、工作狂",
+      "economic_condition": "普通"
+    },
+    "order_history": [
+      {
+        "order_id": "20240529001",
+        "order_type": "电子产品",
+        "order_status": "已完成",
+        "order_amount": 1200.5,
+        "delivery_distance": 2.5,
+        "delivery_time": "30分钟",
+        "order_rating": 4,
+        "order_review": "商品质量很好，配送速度也快。"
+      },
+      {
+        "order_id": "20240529002",
+        "order_type": "图书",
+        "order_status": "已完成",
+        "order_amount": 150.2,
+        "delivery_distance": 1.2,
+        "delivery_time": "20分钟",
+        "order_rating": 5,
+        "order_review": "书籍种类丰富，服务态度好。"
+      },
+      {
+        "order_id": "20240529003",
+        "order_type": "餐饮",
+        "order_status": "已取消",
+        "order_amount": 80.3,
+        "delivery_distance": 0.8,
+        "delivery_time": "15分钟",
+        "order_rating": 0,
+        "order_review": "配送延迟，食物不新鲜。"
+      }
+    ]
+  },
+  {
+    "profile": {
+      "customer_id": 1751126473286,
+      "age": 35,
+      "gender": "女",
+      "occupation": "古董修复师",
+      "personality": "细致、保守",
+      "economic_condition": "普通"
+    },
+    "order_history": [
+      {
+        "order_id": "OH20240528001",
+        "order_type": "文物修复材料",
+        "order_status": "已完成",
+        "order_amount": 245.5,
+        "delivery_distance": 12.3,
+        "delivery_time": "30分钟",
+        "order_rating": 4,
+        "order_review": "材料质量不错，包装也很仔细。"
+      },
+      {
+        "order_id": "OH20240528002",
+        "order_type": "专业书籍",
+        "order_status": "已完成",
+        "order_amount": 189.0,
+        "delivery_distance": 8.5,
+        "delivery_time": "25分钟",
+        "order_rating": 5,
+        "order_review": "书本内容很专业，配送速度也很快。"
+      },
+      {
+        "order_id": "OH20240528003",
+        "order_type": "文具用品",
+        "order_status": "已完成",
+        "order_amount": 98.0,
+        "delivery_distance": 5.0,
+        "delivery_time": "15分钟",
+        "order_rating": 3,
+        "order_review": "文具质量一般，但价格实惠。"
+      }
+    ]
+  },
+  {
+    "profile": {
+      "customer_id": 1751126479606,
+      "age": 29,
+      "gender": "女",
+      "occupation": "花艺师",
+      "personality": "细心、注重细节",
+      "economic_condition": "普通"
+    },
+    "order_history": [
+      {
+        "order_id": "OH123456",
+        "order_type": "生鲜",
+        "order_status": "已完成",
+        "order_amount": 89.5,
+        "delivery_distance": 2.3,
+        "delivery_time": "30分钟",
+        "order_rating": 4,
+        "order_review": "配送很快，食材新鲜。"
+      },
+      {
+        "order_id": "OH123457",
+        "order_type": "药品",
+        "order_status": "已完成",
+        "order_amount": 45.2,
+        "delivery_distance": 1.8,
+        "delivery_time": "20分钟",
+        "order_rating": 5,
+        "order_review": "药品准确无误，服务态度很好。"
+      },
+      {
+        "order_id": "OH123458",
+        "order_type": "餐饮",
+        "order_status": "已完成",
+        "order_amount": 67.8,
+        "delivery_distance": 3.1,
+        "delivery_time": "40分钟",
+        "order_rating": 3,
+        "order_review": "食物味道不错，但配送时间稍长。"
+      }
+    ]
+  }
+]
